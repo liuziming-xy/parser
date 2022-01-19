@@ -5,7 +5,6 @@ const stream = await fs.createReadStream('../data/id_continue');
 const lineTmpBuf = Buffer.allocUnsafe(12);
 let lineIndex;
 let lineArr;
-const lineRes = [];
 const finalRes = [];
 
 function resetLineData() {
