@@ -394,9 +394,133 @@ class Parser {
     }
   }
 
-  // 读取NumberLiteral
-  readNumber() {}
+  readDigits(digitsRegex) {
+    let state = 0;
+    let matched = false;
+    const start = this.pos;
 
+    loop: while (this.pos < this.input.length) {
+      const char = this.input[this.pos];
+      const code = char.charCodeAt();
+      switch (state) {
+        case 0: {
+          if (digitsRegex.test(char)) {
+            state = 1;
+            this.pos++;
+            matched = true;
+            break;
+          } else {
+            break loop;
+          }
+        }
+        case 1: {
+          if (digitsRegex.test(char)) {
+            this.pos++;
+            matched = true;
+            break;
+          } else if (code === 95) {
+            state = 2;
+            this.pos++;
+            matched = true;
+            break;
+          } else {
+            break loop;
+          }
+        }
+        case 2: {
+          if (digitsRegex.test(char)) {
+            state = 1;
+            this.pos++;
+            matched = true;
+            break;
+          } else {
+            break loop;
+          }
+        }
+        default: {
+          break loop;
+        }
+      }
+    }
+    return matched;
+  }
+
+  readNonDecimalNumber() {
+    let state = 0;
+    const start = this.pos;
+    let type;
+    let isBigInt = false;
+
+    loop: while(this.pos < this.input.length) {
+      const char = this.input[this.pos];
+      const code = char.charCodeAt();
+      switch (state) {
+        case 0: {
+          if (code === 48) {
+            state = 1;
+            this.pos++;
+            break;
+          } else {
+            break loop;
+          }
+        }
+        case 1: {
+          if (code === 66 || code === 98) {
+            type = 'binary';
+            state = 2;
+            this.pos++;
+            break;
+          } else if (code === 79 || code === 111) {
+            type = 'octal';
+            state = 2;
+            this.pos++;
+            break;
+          } else if (code === 88 || code === 120) {
+            type = 'hex';
+            state = 2;
+            this.pos++;
+            break;
+          } else {
+            break loop;
+          }
+        }
+        case 2: {
+          const typeMap = {
+            'binary': /[01]/,
+            'octal': /[0-7]/,
+            'hex': /[0-9a-fA-F]/,
+          };
+          const matched = this.readDigits(typeMap[type]);
+          if (matched) {
+            state = 3;
+            break;
+          } else {
+            break loop;
+          }
+        }
+        case 3: {
+          if (code === 110) {
+            state = 4;
+            this.pos++;
+            isBigInt = true;
+            break;
+          } else {
+            break loop;
+          }
+        }
+        default: {
+          break loop;
+        }
+      }
+    }
+    let nonDecimal = this.input.slice(start, this.pos);
+    if (isBigInt) {
+      nonDecimal = nonDecimal.slice(0, nonDecimal.length - 1);
+      console.log(BigInt(nonDecimal));
+    } else {
+      console.log(Number(nonDecimal));
+    }
+  }
   // 读取StringLiteral
   readString() {}
 }
@@ -405,7 +529,18 @@ const str = await fs.readFile('./test', { encoding: 'utf8' });
 
 const parser = new Parser(str);
 
-parser.nextToken();
-parser.nextToken();
-parser.nextToken();
-parser.nextToken();
+// parser.nextToken();
+// parser.nextToken();
+// parser.nextToken();
+// parser.nextToken();
+parser.readNonDecimalNumber();
+parser.skipSpace();
+parser.readNonDecimalNumber();
+parser.skipSpace();
+parser.readNonDecimalNumber();
+parser.skipSpace();
+parser.readNonDecimalNumber();
+parser.skipSpace();
+parser.readNonDecimalNumber();
+parser.skipSpace();
+parser.readNonDecimalNumber();
