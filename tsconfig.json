@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM"],
+    "baseUrl": ".",
+    "target": "ES6"
+  },
+  "include": ["src/**/*"]
+}

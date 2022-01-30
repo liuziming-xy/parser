@@ -2,8 +2,7 @@
   "name": "parser",
   "version": "1.0.0",
   "main": "index.js",
-  "repository": "https://github.com/liuziming-xy/parser.git",
+  "repository": "git@github.com:liuziming-xy/parser.git",
   "author": "liuziming-xy <andy_liuziming@qq.com>",
-  "license": "MIT",
-  "type": "module"
+  "license": "MIT"
 }
