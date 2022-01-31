@@ -8,6 +8,14 @@ class State<T> {
   }
 }
 
+enum Op {
+  Concat = '·',
+  Union = '|',
+  Closure = '*',
+  LeftGroup = '(',
+  RightGroup = ')',
+}
+
 class NFAState extends State<NFAState> {
   epsilons: NFAState[];
 
@@ -42,7 +50,7 @@ function getEpsilonClosure(states: NFAState[]): NFAState[] {
   return epsilonClosure;
 }
 
-class NFABuilder {
+export class NFABuilder {
   private _id: number;
 
   constructor() {
@@ -100,26 +108,27 @@ class NFABuilder {
     return { start, end };
   }
 
-  parse(postRegex: string): NFA {
+  parse(regex: string): NFA {
+    const postRegex = ShuntingYard(autoConcat(regex));
     const stack: NFA[] = [];
 
     for (const token of postRegex) {
       switch (token) {
-        case '.': {
+        case Op.Concat: {
           const end = stack.pop();
           const start = stack.pop();
           const next = this.concat(start, end);
           stack.push(next);
           break;
         }
-        case '|': {
+        case Op.Union: {
           const right = stack.pop();
           const left = stack.pop();
           const next = this.union(left, right);
           stack.push(next);
           break;
         }
-        case '*': {
+        case Op.Closure: {
           const nfa = stack.pop();
           const next = this.closure(nfa);
           stack.push(next);
@@ -146,7 +155,7 @@ type DFA = {
 };
 
 // 五元组表示dfa
-function toDFA(nfa: NFA): DFA {
+export function toDFA(nfa: NFA): DFA {
   // 状态集合
   const states: NFAState[][] = [];
   // 起始点
@@ -215,16 +224,18 @@ function toDFA(nfa: NFA): DFA {
     }
   }
 
-  return {
+  const dfa = {
     states,
     start,
     end,
     inputs,
     move,
   };
+
+  return minimizeDFA(dfa);
 }
 
-function match(dfa: DFA, test: string) {
+export function match(dfa: DFA, test: string) {
   const stack: NFAState[][] = [];
   let current = dfa.start;
   const start = 0;
@@ -248,23 +259,100 @@ function match(dfa: DFA, test: string) {
     pos--;
   }
 
-  return { start, end: pos };
+  return {
+    value: test.slice(start, pos),
+    start,
+    end: pos,
+  };
 }
 
-////////////////////////// test //////////////////////////
-const source = 'abbbaaaccc';
+function getOpRank(ch: Op): number {
+  switch (ch) {
+    case Op.Closure:
+      return 3;
+    case Op.Concat:
+      return 2;
+    case Op.Union:
+      return 1;
+    default:
+      return 0;
+  }
+}
 
-const nfaBuilder = new NFABuilder();
-/**
- * TODO: 实现正则插入dot操作符, 实现中追表达式转后缀表达式
- */
-const nfa = nfaBuilder.parse('ab|*c.');
-const dfa = toDFA(nfa);
-const posInfo = match(dfa, source);
+function compare(o1: Op, o2: Op): number {
+  const r1 = getOpRank(o1);
+  const r2 = getOpRank(o2);
 
-const data = {
-  value: source.slice(posInfo.start, posInfo.end),
-  start: posInfo.start,
-  end: posInfo.end,
-};
-console.log(data);
+  return r1 - r2;
+}
+
+// 调度场算法
+function ShuntingYard(inRegex) {
+  const stack = [];
+  const output = [];
+
+  for (const char of inRegex) {
+    if ([Op.Closure, Op.Concat, Op.Union].includes(char)) {
+      // 操作符
+      while (stack.length > 0) {
+        const o2 = stack[stack.length - 1];
+        const o1 = char;
+        const res = compare(o1, o2);
+        if (res < 0) {
+          const current = stack.pop();
+          output.push(current);
+        } else {
+          break;
+        }
+      }
+      stack.push(char);
+    } else if (char === Op.LeftGroup) {
+      stack.push(char);
+    } else if (char === Op.RightGroup) {
+      let currentOperator = stack.pop();
+      while (currentOperator !== Op.LeftGroup) {
+        output.push(currentOperator);
+        currentOperator = stack.pop();
+      }
+    } else {
+      output.push(char);
+    }
+  }
+
+  while (stack.length) {
+    output.push(stack.pop());
+  }
+  return output.join('');
+}
+
+function autoConcat(inRegex: string): string {
+  const stack = [];
+  const len = inRegex.length;
+
+  for (let i = 0; i < len; i++) {
+    const char = inRegex[i];
+    stack.push(char);
+    if (i === len - 1) {
+      break;
+    }
+    const ahead = inRegex[i + 1];
+    if (
+      // 右结合操作符符和二元操作符
+      [Op.LeftGroup, Op.Union].includes(char as Op) ||
+      // 左结合操作符和二元操作符
+      [Op.RightGroup, Op.Closure, Op.Union].includes(ahead as Op)
+    ) {
+      continue;
+    }
+    // 需要添加连字符
+    stack.push(Op.Concat);
+  }
+
+  return stack.join('');
+}
+
+// TODO: 最小化DFA
+function minimizeDFA(dfa: DFA): DFA {
+  // pass
+  return dfa;
+}
