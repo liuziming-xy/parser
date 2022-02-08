@@ -153,3 +153,7 @@ function follow(cfg: Production[], sym: Symbolic): Map<Symbolic, Symbolic> {
 
 const fo = follow(cfg, SymbolPlus);
 console.log(fo);
+
+// TODO:
+// 1. 遍历产生式的左边，求出每个非终结符的First集和Follow集
+// 2. 构建LL(1)表，使用查表法非回溯的获取解析方式
