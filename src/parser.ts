@@ -106,8 +106,8 @@ const cfg = [
 
 // LL(1) left to right, left most, (1)个word
 // first集的计算不允许左递归
-const fi = first(cfg, SymbolA);
-console.log(fi);
+const fi = first(cfg, SymbolPlus);
+// console.log(fi);
 
 // follow集
 function follow(cfg: Production[], sym: Symbolic): Map<Symbolic, Symbolic> {
@@ -152,8 +152,183 @@ function follow(cfg: Production[], sym: Symbolic): Map<Symbolic, Symbolic> {
 }
 
 const fo = follow(cfg, SymbolPlus);
-console.log(fo);
+// console.log(fo);
+
+// 具有相同的header(产生式左侧)的分成一组
+type GroupProduction = {
+  header: Symbolic;
+  prods: Production[];
+};
+
+function getGroupProduction(cfg: Production[]): GroupProduction[] {
+  const map = new Map<Symbolic, Production[]>();
+  for (const production of cfg) {
+    // 如果当前key不存在
+    const { header } = production;
+    if (!map.has(header)) {
+      map.set(header, []);
+    }
+    map.get(header).push(production);
+  }
+
+  const result: GroupProduction[] = [];
+
+  for (const [header, prods] of map.entries()) {
+    result.push({ header, prods });
+  }
+  return result;
+}
+
+function simpleProduction(cfg: Production[]): Production[] {
+  return cfg;
+}
+
+// 消除所有产生式的左递归
+// 首先对所有产生式采用groupProduction
+// 按照所给的顺序，将所有的产生式替换为已经出现过的产生式, 再次遍历如果出现直接左递归，
+function removeLeftRecursive(cfg: Production[]): Production[] {
+  const result: Production[] = [];
+  const groups = getGroupProduction(cfg);
+
+  for (let i = 0; i < groups.length; i++) {
+    for (let j = 0; j < i; j++) {
+      // 创建一个新的production
+      const newPros: Production[] = [];
+
+      // 遍历当前符号的每一个产生式
+      for (let t = 0; t < groups[i].prods.length; t++) {
+        // 如果是终结符直接跳过
+        if (groups[i].prods[t].body[0].type === SymType.Terminal) {
+          newPros.push(groups[i].prods[t]);
+          continue;
+        }
+        // 如果是直接左递归, 将当前的产生式直接添加到新的产生式上边
+        if (groups[i].prods[t].body[0] === groups[i].header) {
+          newPros.push(groups[i].prods[t]);
+          continue;
+        }
+
+        // 非终结符 -> 开始substitute
+        if (groups[i].prods[t].body[0] === groups[j].header) {
+          // 将符号的所有产生式都替换成新表达式
+          for (let c = 0; c < groups[j].prods.length; c++) {
+            newPros.push({
+              header: groups[i].prods[t].header,
+              body: groups[j].prods[c].body.concat(groups[i].prods[t].body.slice(1)),
+            });
+          }
+        } else {
+          newPros.push(groups[i].prods[t]);
+        }
+      }
+
+      // 完成这一次的遍历后，替换当前符号的productions
+      groups[i].prods = newPros;
+    }
+
+    // 结束每一轮这样的遍历之后，当前遍历符号不存在
+    const hasLeftRecursive = groups[i].prods.some(
+      production => production.body[0] === groups[i].header,
+    );
+
+    if (!hasLeftRecursive) {
+      for (const production of groups[i].prods) {
+        result.push(production);
+      }
+      continue;
+    }
+
+    // 创建一个新符号
+    const newSym: Symbolic = {
+      type: SymType.NonTerminal,
+      value: `${groups[i].header.value}'`,
+    };
+    // 包含直接左递归(direct left recursive)
+    for (let x = 0; x < groups[i].prods.length; x++) {
+      let newPro: Production;
+
+      if (groups[i].prods[x].body[0] === groups[i].header) {
+        newPro = {
+          header: newSym,
+          body: groups[i].prods[x].body.slice(1).concat([newSym]),
+        };
+      } else {
+        // 当前表达式不包含直接左递归
+        // 空表达式
+        if (groups[i].prods[x].body[0].type === SymType.Epsilon) {
+          newPro = {
+            header: groups[i].header,
+            body: [newSym],
+          };
+        } else {
+          newPro = {
+            header: groups[i].header,
+            body: groups[i].prods[x].body.concat([newSym]),
+          };
+        }
+      }
+      result.push(newPro);
+    }
+    // 需要添加一个空产生式
+    const newPro: Production = {
+      header: newSym,
+      body: [SymbolEpsilon],
+    };
+    result.push(newPro);
+  }
+
+  return simpleProduction(result);
+}
+
+const SymbolS: Symbolic = { type: SymType.NonTerminal, value: 'S' };
+const SymbolQ: Symbolic = { type: SymType.NonTerminal, value: 'Q' };
+const SymbolR: Symbolic = { type: SymType.NonTerminal, value: 'R' };
+const SymbolTermA: Symbolic = { type: SymType.Terminal, value: 'a' };
+const SymbolTermB: Symbolic = { type: SymType.Terminal, value: 'b' };
+const SymbolTermC: Symbolic = { type: SymType.Terminal, value: 'c' };
+
+// 测试数据
+const productions = [
+  {
+    header: SymbolS,
+    body: [SymbolQ, SymbolTermC],
+  },
+  {
+    header: SymbolS,
+    body: [SymbolTermC],
+  },
+  {
+    header: SymbolQ,
+    body: [SymbolR, SymbolTermB],
+  },
+  {
+    header: SymbolQ,
+    body: [SymbolTermB],
+  },
+  {
+    header: SymbolR,
+    body: [SymbolS, SymbolTermA],
+  },
+  {
+    header: SymbolR,
+    body: [SymbolTermA],
+  },
+];
+
+const result = removeLeftRecursive(productions);
+
+console.log(JSON.stringify(result));
+// PASS!
+
+// TODO: 提取左公因式
+function takeCommonLeft(cfg: Production[]): Production[] {
+  const result: Production[] = [];
+
+  // 待实现
+
+  return result;
+}
 
 // TODO:
-// 1. 遍历产生式的左边，求出每个非终结符的First集和Follow集
-// 2. 构建LL(1)表，使用查表法非回溯的获取解析方式
+// grammar -> production
+// 构建LL(1)表，使用查表法非回溯的获取解析方式
