@@ -227,9 +227,7 @@ function removeLeftRecursive(cfg: Production[]): Production[] {
     }
 
     // 结束每一轮这样的遍历之后，当前遍历符号不存在
-    const hasLeftRecursive = groups[i].prods.some(
-      production => production.body[0] === groups[i].header,
-    );
+    const hasLeftRecursive = groups[i].prods.some(production => production.body[0] === groups[i].header);
 
     if (!hasLeftRecursive) {
       for (const production of groups[i].prods) {
@@ -288,36 +286,36 @@ const SymbolTermB: Symbolic = { type: SymType.Terminal, value: 'b' };
 const SymbolTermC: Symbolic = { type: SymType.Terminal, value: 'c' };
 
 // 测试数据
-const productions = [
-  {
-    header: SymbolS,
-    body: [SymbolQ, SymbolTermC],
-  },
-  {
-    header: SymbolS,
-    body: [SymbolTermC],
-  },
-  {
-    header: SymbolQ,
-    body: [SymbolR, SymbolTermB],
-  },
-  {
-    header: SymbolQ,
-    body: [SymbolTermB],
-  },
-  {
-    header: SymbolR,
-    body: [SymbolS, SymbolTermA],
-  },
-  {
-    header: SymbolR,
-    body: [SymbolTermA],
-  },
-];
+// const productions = [
+//   {
+//     header: SymbolS,
+//     body: [SymbolQ, SymbolTermC],
+//   },
+//   {
+//     header: SymbolS,
+//     body: [SymbolTermC],
+//   },
+//   {
+//     header: SymbolQ,
+//     body: [SymbolR, SymbolTermB],
+//   },
+//   {
+//     header: SymbolQ,
+//     body: [SymbolTermB],
+//   },
+//   {
+//     header: SymbolR,
+//     body: [SymbolS, SymbolTermA],
+//   },
+//   {
+//     header: SymbolR,
+//     body: [SymbolTermA],
+//   },
+// ];
 
-const result = removeLeftRecursive(productions);
+// const result = removeLeftRecursive(productions);
 
-console.log(JSON.stringify(result));
+// console.log(JSON.stringify(result));
 // PASS!
 
 // TODO: 提取左公因式
@@ -332,3 +330,56 @@ function takeCommonLeft(cfg: Production[]): Production[] {
 // TODO:
 // grammar -> production
 // 构建LL(1)表，使用查表法非回溯的获取解析方式
+/**
+ * 将产生式推导成字典树
+ */
+type TreeNode = {
+  // 当前节点保存的文法符号
+  value: Symbolic;
+  // 是否是根节点
+  isEnd: boolean;
+  // 子节点
+  children: TreeNode[];
+};
+
+function buildTireTree(pros: Production[]): TreeNode {
+  let root: TreeNode;
+  for (let i = 0; i < pros.length; i++) {
+    // 根节点不存在时创建根节点
+    if (!root) {
+      root = { value: pros[i].header, isEnd: false, children: [] };
+    }
+    let node = root;
+    for (const sym of pros[i].body) {
+      let childNode = node.children.find(item => item.value === sym);
+      if (!childNode) {
+        childNode = { value: sym, isEnd: false, children: [] };
+        node.children.push(childNode);
+      }
+      node = childNode;
+    }
+    node.isEnd = true;
+  }
+
+  return root;
+}
+
+const productions = [
+  {
+    header: SymbolS,
+    body: [SymbolQ, SymbolTermC, SymbolQ],
+  },
+  {
+    header: SymbolS,
+    body: [SymbolQ],
+  },
+];
+
+function removeCommonLeft(pros: Production[]) {
+  const groups = getGroupProduction(pros);
+
+  for (let i = 0; i < groups.length; i++) {
+    const productionTree = buildTireTree(groups[i].prods);
+    // 遍历productionTree, 遇到包含多个children的节点，需要创建一个children
+  }
+}
