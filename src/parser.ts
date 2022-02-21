@@ -227,7 +227,9 @@ function removeLeftRecursive(cfg: Production[]): Production[] {
     }
 
     // 结束每一轮这样的遍历之后，当前遍历符号不存在
-    const hasLeftRecursive = groups[i].prods.some(production => production.body[0] === groups[i].header);
+    const hasLeftRecursive = groups[i].prods.some(
+      production => production.body[0] === groups[i].header,
+    );
 
     if (!hasLeftRecursive) {
       for (const production of groups[i].prods) {
@@ -317,15 +319,7 @@ const SymbolTermC: Symbolic = { type: SymType.Terminal, value: 'c' };
 
 // console.log(JSON.stringify(result));
 // PASS!
-
-// TODO: 提取左公因式
-function takeCommonLeft(cfg: Production[]): Production[] {
-  const result: Production[] = [];
-
-  // 待实现
-
-  return result;
-}
+const SymbolEnd = { type: SymType.Terminal, value: '$' };
 
 // TODO:
 // grammar -> production
@@ -336,10 +330,12 @@ function takeCommonLeft(cfg: Production[]): Production[] {
 type TreeNode = {
   // 当前节点保存的文法符号
   value: Symbolic;
-  // 是否是根节点
+  // 是否是终端节点
   isEnd: boolean;
   // 子节点
   children: TreeNode[];
+  // 冗余产生式
+  pros: Production[];
 };
 
 function buildTireTree(pros: Production[]): TreeNode {
@@ -347,39 +343,107 @@ function buildTireTree(pros: Production[]): TreeNode {
   for (let i = 0; i < pros.length; i++) {
     // 根节点不存在时创建根节点
     if (!root) {
-      root = { value: pros[i].header, isEnd: false, children: [] };
+      root = { value: pros[i].header, isEnd: false, children: [], pros: [] };
     }
     let node = root;
     for (const sym of pros[i].body) {
       let childNode = node.children.find(item => item.value === sym);
       if (!childNode) {
-        childNode = { value: sym, isEnd: false, children: [] };
+        childNode = { value: sym, isEnd: false, children: [], pros: [] };
         node.children.push(childNode);
       }
       node = childNode;
+      node.pros.push(pros[i]);
     }
     node.isEnd = true;
   }
-
   return root;
 }
 
 const productions = [
   {
     header: SymbolS,
-    body: [SymbolQ, SymbolTermC, SymbolQ],
+    body: [SymbolQ, SymbolTermA, SymbolQ],
   },
   {
     header: SymbolS,
-    body: [SymbolQ],
+    body: [SymbolQ, SymbolTermB],
   },
 ];
 
-function removeCommonLeft(pros: Production[]) {
+function removeCommonLeft(pros: Production[]): Production[] {
   const groups = getGroupProduction(pros);
+  const result: Production[] = [];
 
   for (let i = 0; i < groups.length; i++) {
     const productionTree = buildTireTree(groups[i].prods);
-    // 遍历productionTree, 遇到包含多个children的节点，需要创建一个children
+    const newPros: Production[] = [];
+
+    const stack: TreeNode[] = [];
+    stack.push(productionTree);
+    // 存放节点是否遍历过
+    const map = new Map<TreeNode, boolean>();
+
+    while (stack.length) {
+      // 栈的深度
+      const depth = stack.length - 1;
+      // 查看栈顶元素
+      const node = stack[depth];
+
+      let childNode: TreeNode;
+      for (const child of node.children) {
+        if (!map.get(child)) {
+          childNode = child;
+          break;
+        }
+      }
+      if (childNode) {
+        stack.push(childNode);
+        continue;
+      }
+
+      if (map.get(node)) {
+        stack.pop();
+        continue;
+      }
+      map.set(node, true);
+      // 子节点数量大于1，证明有公因子，
+      // 1.创建新文法符号
+      // 2.设置新的产生式
+      if (node.children.length > 1) {
+        const newSym: Symbolic = { type: SymType.NonTerminal, value: `${node.value.value}'` };
+        for (const child of node.children) {
+          // 修改当前的语法，当前节点的子节点中只可能拥有一个产生式
+          const [production] = child.pros;
+          // 根据当前栈的深度，截取产生式
+          const newPro: Production = {
+            header: newSym,
+            body: [newSym].concat(production.body.slice(depth + 1)),
+          };
+          newPros.push(newPro);
+        }
+        const newPro: Production = {
+          header: node.value,
+          body: stack
+            .slice(1)
+            .map(item => item.value)
+            .concat([newSym]),
+        };
+        newPros.push(newPro);
+        // 修改当前树上的结果
+        node.pros = [newPro];
+
+        for (const pro of newPros) {
+          result.push(pro);
+        }
+      } else {
+        // 少于1个, 直接添加到结果数组中
+        result.push(node.pros[0]);
+      }
+    }
   }
+  return result;
 }
+
+const res = removeCommonLeft(productions);
+console.log(JSON.stringify(res));
