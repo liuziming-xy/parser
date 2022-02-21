@@ -418,12 +418,12 @@ function removeCommonLeft(pros: Production[]): Production[] {
           // 根据当前栈的深度，截取产生式
           const newPro: Production = {
             header: newSym,
-            body: [newSym].concat(production.body.slice(depth + 1)),
+            body: production.body.slice(depth),
           };
           newPros.push(newPro);
         }
         const newPro: Production = {
-          header: node.value,
+          header: stack[0].value,
           body: stack
             .slice(1)
             .map(item => item.value)
@@ -436,9 +436,6 @@ function removeCommonLeft(pros: Production[]): Production[] {
         for (const pro of newPros) {
           result.push(pro);
         }
-      } else {
-        // 少于1个, 直接添加到结果数组中
-        result.push(node.pros[0]);
       }
     }
   }
