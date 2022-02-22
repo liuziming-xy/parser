@@ -367,11 +367,12 @@ const productions = [
   },
   {
     header: SymbolS,
-    body: [SymbolQ, SymbolTermB],
+    body: [SymbolQ],
   },
 ];
 
-function removeCommonLeft(pros: Production[]): Production[] {
+// 提取左公因子
+function takeCommonLeft(pros: Production[]): Production[] {
   const groups = getGroupProduction(pros);
   const result: Production[] = [];
 
@@ -410,7 +411,7 @@ function removeCommonLeft(pros: Production[]): Production[] {
       // 子节点数量大于1，证明有公因子，
       // 1.创建新文法符号
       // 2.设置新的产生式
-      if (node.children.length > 1) {
+      if (node.children.length > 1 || (node.children.length === 1 && node.isEnd)) {
         const newSym: Symbolic = { type: SymType.NonTerminal, value: `${node.value.value}'` };
         for (const child of node.children) {
           // 修改当前的语法，当前节点的子节点中只可能拥有一个产生式
@@ -419,6 +420,13 @@ function removeCommonLeft(pros: Production[]): Production[] {
           const newPro: Production = {
             header: newSym,
             body: production.body.slice(depth),
+          };
+          newPros.push(newPro);
+        }
+        if (node.isEnd) {
+          const newPro: Production = {
+            header: newSym,
+            body: [SymbolEpsilon],
           };
           newPros.push(newPro);
         }
@@ -442,5 +450,44 @@ function removeCommonLeft(pros: Production[]): Production[] {
   return result;
 }
 
-const res = removeCommonLeft(productions);
+const res = takeCommonLeft(productions);
 console.log(JSON.stringify(res));
+
+// 将grammar生成产生式结构
+// S -> QaQ | Qb
+function getProduction() {}
+
+// 生成LL(1) table
+function getLL1Table(cfg: Production[]) {
+  // table是一个二维的Map,
+  // 首先获取到所有产生式的左侧
+  const res = new Map<Symbolic, Map<Symbolic, Symbolic>>();
+
+  const symSet = new Set<Symbolic>();
+  // 遍历数组
+  for (const pro of cfg) {
+    symSet.add(pro.header);
+    // 每一个pro => 遍历每个body的因子，构建
+    for (const sym of pro.body) {
+      symSet.add(sym);
+    }
+  }
+  // 能接受的所有文法符号
+  for (const sym of symSet) {
+    if (!res.get(sym)) {
+      res.set(sym, new Map<Symbolic, Symbolic>());
+    }
+    // 计算first集和follow集
+    const firstList = first(cfg, sym);
+    const followList = follow(cfg, sym);
+  }
+}
+
+function main() {
+  // 首先生成production
+  let pros: Production[] = [];
+  // 首先消除左递归
+  pros = removeLeftRecursive(pros);
+  // 提取左公因子
+  pros = takeCommonLeft(pros);
+}
